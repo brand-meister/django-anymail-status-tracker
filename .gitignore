@@ -1,0 +1,15 @@
+# OS Ignores
+.DS_Store
+
+# IDE Ignores
+.project
+.pydevproject
+*.pyc
+bin
+include
+.idea
+
+# local settings overrides
+settings_local.py
+# media
+media/
