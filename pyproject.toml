@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Simple wrapper around django-anymail to receive and persist e-mail status event data"
 authors = ["Sebastian Braß <brass@brandpunktmeister.de>"]
 readme = "README.md"
+packages = [
+    { include = "anymail_status_tracker" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.10"
