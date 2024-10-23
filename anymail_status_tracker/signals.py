@@ -20,7 +20,7 @@ def handle_tracking_event(sender, event, esp_name, **kwargs):
     MailDelivery.objects.filter(message_id=event.message_id, recipient=event.recipient).update(
         esp_name=esp_name,
         state=event.event_type,
-        last_status_change=event.timestamp,
+        timestamp=event.timestamp,
         metadata=event.metadata,
         reject_reason=event.reject_reason,
         description=event.description,
