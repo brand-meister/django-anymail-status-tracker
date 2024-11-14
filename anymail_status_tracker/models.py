@@ -1,5 +1,7 @@
 from django.db import models
 
+from anymail_status_tracker.managers import MailDeliveryManager
+
 
 class MailDelivery(models.Model):
     # Not all ESPs will have all of these states
@@ -72,9 +74,17 @@ class MailDelivery(models.Model):
     sent_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    objects = MailDeliveryManager()
+
     class Meta:
         verbose_name = "Mail Delivery"
         verbose_name_plural = "Mail Deliveries"
 
     def __str__(self):
         return f"{self.recipient} ({self.get_state_display()} {self.updated_at})"
+
+    @property
+    def success(self) -> bool | None:
+        if self.state == self.STATE_SENT:
+            return None
+        return self.state == self.STATE_DELIVERED
