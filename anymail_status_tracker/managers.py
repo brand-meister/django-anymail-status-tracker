@@ -14,7 +14,7 @@ class MailDeliveryManager(Manager):
         fake_delivery: bool = False,
     ):
         assert isinstance(message, EmailMessage)
-        assert isinstance(message.connection, AnymailBaseBackend)
+        assert message.connection is None or isinstance(message.connection, AnymailBaseBackend)
 
         if settings.DEBUG and getattr(settings, "ANYMAIL_STATUS_TRACKER_DEBUG_BACKEND", None):
             debug_backend = import_string(settings.ANYMAIL_STATUS_TRACKER_DEBUG_BACKEND)
