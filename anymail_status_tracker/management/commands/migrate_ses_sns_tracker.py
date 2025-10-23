@@ -1,3 +1,4 @@
+import contextlib
 import importlib.util
 import json
 
@@ -35,10 +36,8 @@ class Command(BaseCommand):
             if name == "x-tag":
                 tags.append(header["value"])
             elif name == "x-metadata":
-                try:
+                with contextlib.suppress(ValueError, TypeError, KeyError):
                     metadata = json.loads(header["value"])
-                except (ValueError, TypeError, KeyError):
-                    pass
         reject_reason = None
         mta_response = None
         description = None
@@ -105,5 +104,5 @@ class Command(BaseCommand):
 
             MailDelivery.objects.bulk_create(mail_deliveries)
         else:
-            print("Package ses_sns_tracker is not installed")
+            print("Package ses_sns_tracker is not installed")  # noqa T201
             return
