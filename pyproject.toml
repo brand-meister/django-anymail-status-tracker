@@ -10,13 +10,13 @@ packages = [
 
 [tool.poetry.dependencies]
 python = "^3.10"
-django-anymail = "^12.0"
+django-anymail = "^13.1"
 
 [tool.poetry.group.dev.dependencies]
 Django = "4.2"
 psycopg2 = "^2.9.10"
-boto3 = "^1.35.43"
-ruff = "^0.7.0"
+boto3 = "~=1.40.57"
+ruff = "^0.14.1"
 
 [build-system]
 requires = ["poetry-core"]
