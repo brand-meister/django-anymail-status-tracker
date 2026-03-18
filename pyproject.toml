@@ -9,6 +9,7 @@ dependencies = ["django-anymail>=13.1,<14", "django>=4.2"]
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.5.1",
     "ruff>=0.14.1,<0.15",
 ]
 
