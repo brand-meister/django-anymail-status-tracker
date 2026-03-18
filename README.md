@@ -6,8 +6,7 @@ Records mail delivery in the `MailDelivery` model and updates the state if a mat
 
 ## Requirements
 
-- [Django](https://www.djangoproject.com) version 3.10+
-- A [PostgreSQL](https://www.postgresql.org/) Database
+- [Django](https://www.djangoproject.com) version 4.2+
 
 
 ## Quick start
@@ -35,7 +34,7 @@ Records mail delivery in the `MailDelivery` model and updates the state if a mat
 1. Install development dependencies:
 
     ```bash
-    poetry install
+    uv sync
     ```
 
 2. Install the [ruff extension](https://docs.astral.sh/ruff/integrations/) for code linting & formatting in your IDE.

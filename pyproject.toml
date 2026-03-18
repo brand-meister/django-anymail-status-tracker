@@ -1,26 +1,27 @@
-[tool.poetry]
+[project]
 name = "django-anymail-status-tracker"
-version = "0.1.0"
+version = "1.0.0"
 description = "Simple wrapper around django-anymail to receive and persist e-mail status event data"
-authors = ["Sebastian Braß <brass@brandpunktmeister.de>"]
+authors = [{ name = "Sebastian Braß", email = "brass@brandpunktmeister.de" }, { name = "Fabio Reinsch", email = "fabio.reinsch@brandmeister.de" }]
+requires-python = ">=3.10,<4"
 readme = "README.md"
-packages = [
-    { include = "anymail_status_tracker" }
+dependencies = ["django-anymail>=13.1,<14", "django>=4.2"]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.1,<0.15",
 ]
 
-[tool.poetry.dependencies]
-python = "^3.10"
-django-anymail = "^13.1"
+[tool.uv]
+default-groups = "all"
 
-[tool.poetry.group.dev.dependencies]
-Django = "4.2"
-psycopg2 = "^2.9.10"
-boto3 = "~=1.40.57"
-ruff = "^0.14.1"
+[tool.uv.build-backend]
+module-name = ["anymail_status_tracker"]
+module-root = ""
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["uv_build>=0.10.11,<0.11.0"]
+build-backend = "uv_build"
 
 # linting & formatter
 [tool.ruff]
