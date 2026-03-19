@@ -1,4 +1,3 @@
-from django.conf import settings
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.contenttypes.models import ContentType
 from django.dispatch import receiver
@@ -6,6 +5,7 @@ from django.dispatch import receiver
 from anymail.signals import post_send, tracking
 
 from anymail_status_tracker.models import MailDelivery
+from anymail_status_tracker.settings import ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID
 
 
 @receiver(post_send)
@@ -40,11 +40,12 @@ def handle_tracking_event(sender, event, esp_name, **kwargs):
     delivery.esp_event = event.esp_event
     delivery.save()
 
-    LogEntry.objects.create(
-        user_id=settings.ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
-        content_type_id=ContentType.objects.get_for_model(delivery).pk,
-        object_id=delivery.pk,
-        object_repr=str(delivery),
-        action_flag=CHANGE,
-        change_message=f"Status updated from {previous_state} to {delivery.state}",
-    )
+    if ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID:
+        LogEntry.objects.create(
+            user_id=ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
+            content_type_id=ContentType.objects.get_for_model(delivery).pk,
+            object_id=delivery.pk,
+            object_repr=str(delivery),
+            action_flag=CHANGE,
+            change_message=f"Status updated from {previous_state} to {delivery.state}",
+        )
