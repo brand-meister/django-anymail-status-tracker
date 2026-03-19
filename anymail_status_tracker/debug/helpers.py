@@ -14,6 +14,7 @@ def send_test_email(email=DEFAULT_EMAIL):
     """Send a test email via the configured backend and return the message_id.
 
     The post_send signal will automatically create a MailDelivery record.
+    Requires an Anymail email backend to be configured.
     """
     message = EmailMessage(
         subject="Test Email",
@@ -22,6 +23,8 @@ def send_test_email(email=DEFAULT_EMAIL):
         to=[email],
     )
     message.send()
+    if not hasattr(message, "anymail_status") or message.anymail_status is None:
+        raise RuntimeError("No anymail_status on message. Ensure an Anymail email backend is configured.")
     return message.anymail_status.message_id
 
 
