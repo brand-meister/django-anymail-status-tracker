@@ -1,30 +1,10 @@
-"""
-Minimal settings file to develop django-ses-sns-tracker.
-Use `settings_local.py` to override any settings.
-"""
-
 import os
-from contextlib import suppress
 
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/1.11/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "lckm&o44ck@^3i)drxg*mza&c!=l4!9!j6wp7em(*wk!9-d44@"
-
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
-
 ALLOWED_HOSTS = []
-
-
-# Application definition
-
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -34,7 +14,6 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "anymail_status_tracker",
 ]
-
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -44,13 +23,11 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
-
 ROOT_URLCONF = "example_proj.urls"
-
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [os.path.join(BASE_DIR, "example_proj")],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -62,39 +39,19 @@ TEMPLATES = [
         },
     },
 ]
-
 WSGI_APPLICATION = "example_proj.wsgi.application"
-
-
-# Database
-# https://docs.djangoproject.com/en/1.11/ref/settings/#databases
-
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": "anymail_status_tracker_dev",
+        "ENGINE": "django.db.backends.sqlite3",
+        "NAME": "db.sqlite3",
     }
 }
-
-
-# Internationalization
-# https://docs.djangoproject.com/en/1.11/topics/i18n/
-
+EMAIL_BACKEND = "anymail.backends.console.EmailBackend"
 LANGUAGE_CODE = "en-us"
-
 TIME_ZONE = "UTC"
-
 USE_I18N = True
-
 USE_L10N = True
-
 USE_TZ = True
-
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/1.11/howto/static-files/
-
 STATIC_URL = "/static/"
 
-with suppress(ImportError):
-    from .settings_local import *  # noqa: F403
+ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID = 1
