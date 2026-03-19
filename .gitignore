@@ -8,6 +8,11 @@
 bin
 include
 .idea
+.venv/
+venv/
+
+# SQLite database files
+*.sqlite3
 
 # local settings overrides
 settings_local.py
