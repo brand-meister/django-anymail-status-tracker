@@ -3,18 +3,19 @@ name = "django-anymail-status-tracker"
 version = "1.0.0"
 description = "Simple wrapper around django-anymail to receive and persist e-mail status event data"
 authors = [{ name = "Sebastian Braß", email = "brass@brandpunktmeister.de" }, { name = "Fabio Reinsch", email = "fabio.reinsch@brandmeister.de" }]
-requires-python = ">=3.10,<4"
+requires-python = ">=3.10,<3.15"
 readme = "README.md"
-dependencies = ["django-anymail>=13.1,<14", "django>=4.2"]
+dependencies = ["django-anymail[amazon-ses]>=13.1,<14", "django>=4.2,<6"]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.5.1",
-    "ruff>=0.14.1,<0.15",
+    "pre-commit==4.5.1",
+    "ruff==0.15.7",
 ]
 
 [tool.uv]
 default-groups = "all"
+constraint-dependencies = ["django>=4.2,<4.3"]
 
 [tool.uv.build-backend]
 module-name = ["anymail_status_tracker"]
