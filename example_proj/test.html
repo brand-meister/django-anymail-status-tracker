@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test</title></head>
+<body>
+  <h1>Test Form</h1>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Submit</button>
+  </form>
+
+  <hr>
+
+  <h2>Mail Deliveries</h2>
+  {% if deliveries %}
+  <ul>
+    {% for d in deliveries %}
+    <li>{{ d.recipient }} &mdash; {{ d.get_state_display }} &mdash; {{ d.message_id }} ({{ d.updated_at }})</li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p>No deliveries yet.</p>
+  {% endif %}
+</body>
+</html>
