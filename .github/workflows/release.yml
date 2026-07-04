@@ -2,6 +2,8 @@ name: Release
 
 on:
   workflow_dispatch:
+    branches:
+      - master
     inputs:
       version:
         description: "Version to release (e.g. 1.2.0)"
@@ -13,30 +15,42 @@ permissions:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      - name: Validate version
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
+          if ! [[ "$INPUT_VERSION" =~ $semver_pattern ]]; then
+            echo "::error::Invalid SemVer: $INPUT_VERSION"
+            exit 1
+          fi
+          echo "VERSION=$INPUT_VERSION" >> "$GITHUB_ENV"
+
       - uses: astral-sh/setup-uv@v5
 
       - name: Set version
-        run: uv version "${{ inputs.version }}"
+        run: uv version "$VERSION"
 
       - name: Commit version bump
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add pyproject.toml uv.lock
-          git commit -m "release v${{ inputs.version }}"
+          git commit -m "release ${VERSION}"
           git push
 
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ inputs.version }}" \
-            --title "v${{ inputs.version }}" \
+          gh release create "${VERSION}" \
+            --title "${VERSION}" \
             --generate-notes \
             --target "$(git rev-parse HEAD)"
