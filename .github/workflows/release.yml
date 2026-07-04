@@ -48,11 +48,21 @@ jobs:
           git commit -m "release v${VERSION}"
           git push origin "HEAD:refs/heads/${{ github.ref_name }}"
 
+      - name: Build packages
+        run: uv build
+
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          shopt -s nullglob
+          assets=(dist/*.whl dist/*.tar.gz)
+          if [ ${#assets[@]} -eq 0 ]; then
+            echo "::error::No build artifacts found in dist/"
+            exit 1
+          fi
           gh release create "${VERSION}" \
             --title "${VERSION}" \
             --generate-notes \
-            --target "$(git rev-parse HEAD)"
+            --target "$(git rev-parse HEAD)" \
+            "${assets[@]}"
