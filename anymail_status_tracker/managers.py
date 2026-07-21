@@ -25,6 +25,9 @@ class MailDeliveryManager(Manager):
             # handle_post_send creates the MailDelivery records with the correct
             # ESP message_id and attaches them to message.mail_deliveries, so we
             # just forward those instead of creating (duplicate) records here.
+            # Reset first so a failed/silent send cannot return deliveries from a
+            # previous send on the same EmailMessage instance.
+            message.mail_deliveries = []
             message.send(fail_silently=fail_silently)
             return getattr(message, "mail_deliveries", [])
 
