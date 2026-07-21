@@ -21,15 +21,22 @@ class MailDeliveryManager(Manager):
             message.connection = debug_backend()
 
         if not fake_delivery:
+            # Real sends go through Anymail, which fires the post_send signal.
+            # handle_post_send creates the MailDelivery records with the correct
+            # ESP message_id and attaches them to message.mail_deliveries, so we
+            # just forward those instead of creating (duplicate) records here.
             message.send(fail_silently=fail_silently)
+            return getattr(message, "mail_deliveries", [])
 
-        deliveries = []
-        for recipient in message.recipients():
-            deliveries.append(
-                self.model(
-                    recipient=recipient,
-                    message_id=message.extra_headers.get("message_id", "NO_MESSAGE_ID"),
-                    state=self.model.STATE_DELIVERED if fake_delivery else self.model.STATE_SENT,
-                )
+        # fake_delivery skips send() and therefore never fires post_send, so the
+        # records still have to be created explicitly here.
+        deliveries = [
+            self.model(
+                recipient=recipient,
+                message_id=message.extra_headers.get("message_id", "NO_MESSAGE_ID"),
+                state=self.model.STATE_DELIVERED,
             )
-        return self.bulk_create(deliveries)
+            for recipient in message.recipients()
+        ]
+        message.mail_deliveries = self.bulk_create(deliveries)
+        return message.mail_deliveries
