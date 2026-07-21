@@ -1,6 +1,6 @@
 version = 1
 revision = 3
-requires-python = ">=3.10, <3.15"
+requires-python = ">=3.10"
 
 [manifest]
 constraints = [{ name = "django", specifier = ">=4.2,<4.3" }]
@@ -196,7 +196,7 @@ amazon-ses = [
 
 [[package]]
 name = "django-anymail-status-tracker"
-version = "1.1.0"
+version = "1.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "django" },
