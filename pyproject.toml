@@ -3,7 +3,7 @@ name = "django-anymail-status-tracker"
 version = "1.1.0"
 description = "Simple wrapper around django-anymail to receive and persist e-mail status event data"
 authors = [{ name = "Sebastian Braß", email = "brass@brandpunktmeister.de" }, { name = "Fabio Reinsch", email = "fabio.reinsch@brandmeister.de" }]
-requires-python = "^3.10"
+requires-python = ">=3.10"
 readme = "README.md"
 dependencies = ["django-anymail[amazon-ses]>=13.1,<14", "django>=4.2,<6"]
 
