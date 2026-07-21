@@ -1,4 +1,5 @@
 import logging
+import time
 
 from django.contrib.admin.models import CHANGE, LogEntry
 from django.contrib.contenttypes.models import ContentType
@@ -8,7 +9,10 @@ from django.dispatch import receiver
 from anymail.signals import post_send, tracking
 
 from anymail_status_tracker.models import MailDelivery
-from anymail_status_tracker.settings import ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID
+from anymail_status_tracker.settings import (
+    ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
+    ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS,
+)
 
 
 logger = logging.getLogger("anymail_status_tracker")
@@ -30,15 +34,52 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
     message.mail_deliveries = deliveries
 
 
+def _get_delivery_for_tracking_event(event):
+    """
+    Look up the MailDelivery for a tracking webhook.
+
+    Retries in-process when the row is missing so a webhook that races ahead of
+    an uncommitted post_send insert can still succeed. The webhook request simply
+    waits through the short backoff delays.
+    """
+    delays = tuple(ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS)
+    attempts = len(delays) + 1
+
+    for attempt in range(attempts):
+        try:
+            return MailDelivery.objects.get(message_id=event.message_id, recipient=event.recipient)
+        except MailDelivery.DoesNotExist:
+            if attempt >= len(delays):
+                logger.error(
+                    "No delivery found for message %s and recipient %s after %s attempt(s)",
+                    event.message_id,
+                    event.recipient,
+                    attempts,
+                )
+                return None
+            delay = delays[attempt]
+            logger.warning(
+                "No delivery found for message %s and recipient %s; retrying in %.1fs (%s/%s)",
+                event.message_id,
+                event.recipient,
+                delay,
+                attempt + 1,
+                attempts,
+            )
+            time.sleep(delay)
+        except MailDelivery.MultipleObjectsReturned:
+            logger.error(
+                "Multiple deliveries found for message %s and recipient %s",
+                event.message_id,
+                event.recipient,
+            )
+            return None
+
+
 @receiver(tracking)
 def handle_tracking_event(sender, event, esp_name, **kwargs):
-    try:
-        delivery = MailDelivery.objects.get(message_id=event.message_id, recipient=event.recipient)
-    except MailDelivery.DoesNotExist:
-        logger.error("No delivery found for message %s and recipient %s", event.message_id, event.recipient)
-        return
-    except MailDelivery.MultipleObjectsReturned:
-        logger.error("Multiple deliveries found for message %s and recipient %s", event.message_id, event.recipient)
+    delivery = _get_delivery_for_tracking_event(event)
+    if delivery is None:
         return
 
     previous_state = delivery.state
