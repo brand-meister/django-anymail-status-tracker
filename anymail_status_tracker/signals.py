@@ -16,13 +16,18 @@ logger = logging.getLogger("anymail_status_tracker")
 
 @receiver(post_send)
 def handle_post_send(sender, message, status, esp_name, **kwargs):
-    for recipient, recipient_status in status.recipients.items():
+    deliveries = [
         MailDelivery.objects.create(
             message_id=recipient_status.message_id,
             state=recipient_status.status,
             esp_name=esp_name,
             recipient=recipient,
         )
+        for recipient, recipient_status in status.recipients.items()
+    ]
+    # Expose the created records on the message so callers can retrieve them
+    # after a plain message.send() (mirrors Anymail's message.anymail_status).
+    message.mail_deliveries = deliveries
 
 
 @receiver(tracking)
