@@ -10,7 +10,7 @@ def _format_datetime_ms(dt):
     if timezone.is_aware(dt):
         dt = timezone.localtime(dt)
     # %f is microseconds; trim to milliseconds
-    return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    return dt.strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
 @admin.register(MailDelivery)
