@@ -6,7 +6,9 @@ from django.contrib.contenttypes.models import ContentType
 from django.db import IntegrityError
 from django.dispatch import receiver
 
+from anymail.exceptions import AnymailInvalidAddress
 from anymail.signals import post_send, tracking
+from anymail.utils import parse_single_address
 
 from anymail_status_tracker.models import MailDelivery
 from anymail_status_tracker.settings import (
@@ -16,6 +18,16 @@ from anymail_status_tracker.settings import (
 
 
 logger = logging.getLogger("anymail_status_tracker")
+
+
+def _normalize_recipient(recipient):
+    """Return bare addr-spec, matching Anymail post_send recipient keys."""
+    if not recipient:
+        return recipient
+    try:
+        return parse_single_address(recipient).addr_spec
+    except AnymailInvalidAddress:
+        return recipient
 
 
 @receiver(post_send)
@@ -34,34 +46,49 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
     message.mail_deliveries = deliveries
 
 
-def _get_delivery_for_tracking_event(event):
+def _get_delivery_for_tracking_event(event, esp_name):
     """
     Look up the MailDelivery for a tracking webhook.
+
+    Match on message_id + esp_name + recipient. Recipient is normalized to a
+    bare addr-spec first: SES Send/Open/Click events often put
+    ``Name <email>`` in ``mail.destination``, while Delivery/Bounce use a
+    bare address — and post_send always stores ``addr_spec`` only.
+
+    message_id alone is not unique for SES: one send shares one MessageId
+    across all to/cc/bcc recipients.
 
     Retries in-process when the row is missing so a webhook that races ahead of
     an uncommitted post_send insert can still succeed. The webhook request simply
     waits through the short backoff delays.
     """
+    recipient = _normalize_recipient(event.recipient)
     delays = tuple(ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS)
     attempts = len(delays) + 1
 
     for attempt in range(attempts):
         try:
-            return MailDelivery.objects.get(message_id=event.message_id, recipient=event.recipient)
+            return MailDelivery.objects.get(
+                message_id=event.message_id,
+                esp_name=esp_name,
+                recipient=recipient,
+            )
         except MailDelivery.DoesNotExist:
             if attempt >= len(delays):
                 logger.error(
-                    "No delivery found for message %s and recipient %s after %s attempt(s)",
+                    "No delivery found for message %s, esp %s, and recipient %s after %s attempt(s)",
                     event.message_id,
-                    event.recipient,
+                    esp_name,
+                    recipient,
                     attempts,
                 )
                 return None
             delay = delays[attempt]
             logger.warning(
-                "No delivery found for message %s and recipient %s; retrying in %.1fs (%s/%s)",
+                "No delivery found for message %s, esp %s, and recipient %s; retrying in %.1fs (%s/%s)",
                 event.message_id,
-                event.recipient,
+                esp_name,
+                recipient,
                 delay,
                 attempt + 1,
                 attempts,
@@ -69,16 +96,17 @@ def _get_delivery_for_tracking_event(event):
             time.sleep(delay)
         except MailDelivery.MultipleObjectsReturned:
             logger.error(
-                "Multiple deliveries found for message %s and recipient %s",
+                "Multiple deliveries found for message %s, esp %s, and recipient %s",
                 event.message_id,
-                event.recipient,
+                esp_name,
+                recipient,
             )
             return None
 
 
 @receiver(tracking)
 def handle_tracking_event(sender, event, esp_name, **kwargs):
-    delivery = _get_delivery_for_tracking_event(event)
+    delivery = _get_delivery_for_tracking_event(event, esp_name)
     if delivery is None:
         return
 
