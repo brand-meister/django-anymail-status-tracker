@@ -13,6 +13,7 @@ from anymail.utils import parse_single_address
 from anymail_status_tracker.models import MailDelivery
 from anymail_status_tracker.settings import (
     ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
+    ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT,
     ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS,
 )
 
@@ -44,6 +45,30 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
     # Expose the created records on the message so callers can retrieve them
     # after a plain message.send() (mirrors Anymail's message.anymail_status).
     message.mail_deliveries = deliveries
+
+
+def _serialize_tracking_event(event, esp_name):
+    esp_event = event.esp_event
+    if hasattr(esp_event, "dict"):
+        # Django QueryDict (some ESP webhook parsers)
+        esp_event = dict(esp_event.lists())
+
+    return {
+        "esp_name": esp_name,
+        "event_type": event.event_type,
+        "timestamp": event.timestamp.isoformat() if event.timestamp else None,
+        "event_id": event.event_id,
+        "message_id": event.message_id,
+        "recipient": event.recipient,
+        "metadata": event.metadata or {},
+        "reject_reason": event.reject_reason,
+        "description": event.description,
+        "mta_response": event.mta_response,
+        "user_agent": event.user_agent,
+        "click_url": event.click_url,
+        "tags": event.tags,
+        "esp_event": esp_event,
+    }
 
 
 def _get_delivery_for_tracking_event(event, esp_name):
@@ -106,6 +131,15 @@ def _get_delivery_for_tracking_event(event, esp_name):
 
 @receiver(tracking)
 def handle_tracking_event(sender, event, esp_name, **kwargs):
+    if ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT:
+        logger.info(
+            "Tracking event from %s for message %s recipient %s",
+            esp_name,
+            event.message_id,
+            event.recipient,
+            extra={"tracking_event": _serialize_tracking_event(event, esp_name)},
+        )
+
     delivery = _get_delivery_for_tracking_event(event, esp_name)
     if delivery is None:
         return
