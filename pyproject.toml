@@ -1,6 +1,6 @@
 [project]
 name = "django-anymail-status-tracker"
-version = "1.2.0"
+version = "1.3.0"
 description = "Simple wrapper around django-anymail to receive and persist e-mail status event data"
 authors = [{ name = "Sebastian Braß", email = "brass@brandpunktmeister.de" }, { name = "Fabio Reinsch", email = "fabio.reinsch@brandmeister.de" }]
 requires-python = ">=3.10"
