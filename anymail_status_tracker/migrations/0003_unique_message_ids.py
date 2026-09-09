@@ -36,10 +36,11 @@ UUID_RE = r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
 PLACEHOLDER_RE = re.compile(rf"^{NO_MESSAGE_ID}-{UUID_RE}$")
 DUPLICATE_RE = re.compile(rf"^(?P<message_id>.+)#dup-{UUID_RE}$")
 
-# Kept in sync with MailDelivery.TERMINAL_NEGATIVE_STATES / STATE_QUEUED. Copied
-# on purpose: a migration must not depend on the current model code.
+# Kept in sync with MailDelivery.TERMINAL_NEGATIVE_STATES and
+# MailDeliveryEvent.POST_SEND_EVENT_ID_PREFIX. Copied on purpose: a migration
+# must not depend on the current model code.
 TERMINAL_NEGATIVE_STATES = frozenset(("rejected", "failed", "bounced", "complained"))
-BASELINE_STATE = "queued"
+POST_SEND_EVENT_ID_PREFIX = "post_send:"
 
 # Status columns copied 1:1 between MailDelivery (until 0004) and MailDeliveryEvent.
 SNAPSHOT_FIELDS = (
@@ -129,7 +130,7 @@ def _rank(event):
     """Same ordering as MailDeliveryEventQuerySet.ranked(); the max() is the winner."""
     return (
         event.event_type in TERMINAL_NEGATIVE_STATES,
-        event.event_type != BASELINE_STATE,
+        not str(event.event_id).startswith(POST_SEND_EVENT_ID_PREFIX),
         event.timestamp or event.received_at,
         event.received_at,
         event.pk,

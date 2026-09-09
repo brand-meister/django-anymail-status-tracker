@@ -12,6 +12,7 @@ from anymail.signals import post_send, tracking
 from anymail.utils import parse_single_address
 
 from anymail_status_tracker.models import MailDelivery, MailDeliveryEvent
+from anymail_status_tracker.models.mail_delivery_event import post_send_event_id
 from anymail_status_tracker.settings import (
     ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
     ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT,
@@ -21,10 +22,6 @@ from anymail_status_tracker.settings import (
 logger = logging.getLogger("anymail_status_tracker")
 
 NO_MESSAGE_ID_PREFIX = "NO_MESSAGE_ID"
-
-# Namespace for deterministic ids of the baseline event written by post_send, so
-# that a re-fired post_send for the same delivery is a no-op.
-POST_SEND_EVENT_NAMESPACE = uuid.UUID("6f1b2a0e-3c4d-4e5f-8a9b-0c1d2e3f4a5b")
 
 
 def normalize_recipient(recipient):
@@ -117,7 +114,7 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
             store_event(
                 MailDeliveryEvent(
                     **key,
-                    event_id=str(uuid.uuid5(POST_SEND_EVENT_NAMESPACE, "|".join(key.values()))),
+                    event_id=post_send_event_id(**key),
                     event_type=recipient_status.status or MailDelivery.STATE_UNKNOWN,
                     timestamp=now,
                     description="Accepted by ESP on send",

@@ -1,8 +1,24 @@
+import uuid
+
 from django.db import models
 from django.db.models import Case, IntegerField, OuterRef, Value, When
 from django.db.models.functions import Coalesce
 
 from anymail_status_tracker.models.mail_delivery import MailDelivery
+
+
+# Deterministic ids for the baseline event written by post_send. Prefixed so
+# ranked() can demote them regardless of the status the ESP returned on send
+# (queued, sent, failed, ...). SNS MessageIds are bare UUIDs and never match.
+POST_SEND_EVENT_ID_PREFIX = "post_send:"
+POST_SEND_EVENT_NAMESPACE = uuid.UUID("6f1b2a0e-3c4d-4e5f-8a9b-0c1d2e3f4a5b")
+
+
+def post_send_event_id(esp_name: str, message_id: str, recipient: str) -> str:
+    """Stable event_id for the post_send baseline of one delivery."""
+    return POST_SEND_EVENT_ID_PREFIX + str(
+        uuid.uuid5(POST_SEND_EVENT_NAMESPACE, "|".join((esp_name, message_id, recipient)))
+    )
 
 
 class MailDeliveryEventQuerySet(models.QuerySet):
@@ -24,7 +40,7 @@ class MailDeliveryEventQuerySet(models.QuerySet):
         Order so that the first event is the one defining the delivery's state:
 
         1. terminal negative events (bounced, complained, rejected, failed) first,
-        2. then any ESP event before the post_send ``queued`` baseline,
+        2. then any ESP tracking event before the post_send baseline,
         3. then latest effective timestamp first,
         4. then latest received / highest pk (deterministic tie-break).
         """
@@ -37,7 +53,7 @@ class MailDeliveryEventQuerySet(models.QuerySet):
                     output_field=IntegerField(),
                 ),
                 _not_baseline=Case(
-                    When(event_type=MailDelivery.STATE_QUEUED, then=Value(0)),
+                    When(event_id__startswith=POST_SEND_EVENT_ID_PREFIX, then=Value(0)),
                     default=Value(1),
                     output_field=IntegerField(),
                 ),

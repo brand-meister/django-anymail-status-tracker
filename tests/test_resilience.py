@@ -164,6 +164,24 @@ def test_queued_baseline_never_beats_an_esp_event(ses_message_id):
     assert delivery(ses_message_id).state == MailDelivery.STATE_SENT
 
 
+@pytest.mark.parametrize("status", ["queued", "sent", "unknown"])
+def test_baseline_never_beats_earlier_delivery_regardless_of_status(ses_message_id, status):
+    # Anymail's test backend (and some ESPs) report "sent" on post_send, not "queued".
+    # Demotion must key off the baseline event_id, not the status string.
+    post_sns_event("Delivery", ses_message_id, timestamp=at(5))
+    fire_post_send(ses_message_id, status=status)
+
+    assert delivery(ses_message_id).state == MailDelivery.STATE_DELIVERED
+
+
+def test_failed_baseline_still_beats_soft_esp_event(ses_message_id):
+    # Baseline demotion must not override terminal-negative ranking.
+    post_sns_event("Delivery", ses_message_id, timestamp=at(5))
+    fire_post_send(ses_message_id, status=MailDelivery.STATE_FAILED)
+
+    assert delivery(ses_message_id).state == MailDelivery.STATE_FAILED
+
+
 def test_event_without_timestamp_falls_back_to_received_at(ses_message_id):
     fire_post_send(ses_message_id)
     MailDeliveryEvent.objects.create(

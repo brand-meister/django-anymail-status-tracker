@@ -107,8 +107,8 @@ order in which notifications arrived:
    soft event (`delivered`, `opened`, `clicked`, ...) is newer. Among terminal negatives the newest wins.
 2. Otherwise the event with the **latest ESP timestamp** wins; an event that arrives late is logged but does
    not regress the state.
-3. The `queued` baseline written by `post_send` never beats an event reported by the ESP, even though our
-   clock may stamp it later than the ESP's `Send` notification.
+3. The baseline written by `post_send` (any status the ESP returned on send) never beats an event reported
+   by the ESP, even though our clock may stamp it later than the ESP's notification.
 4. Events without an ESP timestamp use the time they were received.
 
 ### Orphan events
