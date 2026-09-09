@@ -189,6 +189,8 @@ class MailDelivery(models.Model):
 
     # States in which the outcome is not known yet (success is None).
     PENDING_STATES = frozenset((STATE_QUEUED, STATE_SENT, STATE_DEFERRED, STATE_UNKNOWN))
+    # States in which the outcome is known to be successful.
+    SUCCESS_STATES = frozenset((STATE_DELIVERED, STATE_AUTORESPONDED, STATE_OPENED, STATE_CLICKED))
 
     esp_name = models.CharField(max_length=64, help_text="Name of the ESP")
     message_id = models.CharField(max_length=255)
@@ -267,7 +269,7 @@ class MailDelivery(models.Model):
         state = self.state
         if state in self.PENDING_STATES:
             return None
-        return state == self.STATE_DELIVERED
+        return state in self.SUCCESS_STATES
 
     def refresh_from_db(self, *args, **kwargs):
         super().refresh_from_db(*args, **kwargs)
