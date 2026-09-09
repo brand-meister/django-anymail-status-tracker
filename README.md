@@ -161,7 +161,10 @@ with transaction.atomic():
     instead of `.filter(state=...)`.
   - `delivery.mta_response`, `reject_reason`, `esp_event`, ... moved to `delivery.latest_event`.
   - `updated_at` is gone; use `state_timestamp` or `latest_event.received_at`.
-  - `state` is `"unknown"` (not `"queued"`) for a delivery without any event; `success` is `None` for it.
+  - `state` is `"unknown"` (not `"queued"`) for a delivery without any event.
+  - `success` is `None` for pending states (`queued`, `sent`, `deferred`, `unknown`). In 1.x only
+    `sent` was `None`; `queued`, `deferred` and `unknown` were `False`. Only `delivered` is `True`,
+    as before (`opened`, `clicked`, ... remain `False`).
 - `ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS` is gone; delete it from your settings if you still have it.
 - `create_message(fake_delivery=True)` now records `esp_name="Fake"` and a unique `fake-<uuid>` message id
   per call instead of `NO_MESSAGE_ID`.
