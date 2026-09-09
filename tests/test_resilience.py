@@ -403,8 +403,8 @@ def test_tracking_event_info_log_and_querydict_esp_event(ses_message_id, monkeyp
 
 
 def test_normalize_recipient_edge_cases():
-    assert signals._normalize_recipient("") == ""
-    assert signals._normalize_recipient("not an email@@@") == "not an email@@@"
+    assert signals.normalize_recipient("") == ""
+    assert signals.normalize_recipient("not an email@@@") == "not an email@@@"
 
 
 def test_tracking_uses_same_message_id_normalization_as_post_send():

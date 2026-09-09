@@ -27,7 +27,7 @@ NO_MESSAGE_ID_PREFIX = "NO_MESSAGE_ID"
 POST_SEND_EVENT_NAMESPACE = uuid.UUID("6f1b2a0e-3c4d-4e5f-8a9b-0c1d2e3f4a5b")
 
 
-def _normalize_recipient(recipient):
+def normalize_recipient(recipient):
     """Return bare addr-spec, matching Anymail post_send recipient keys."""
     if not recipient:
         return recipient
@@ -37,7 +37,7 @@ def _normalize_recipient(recipient):
         return recipient
 
 
-def _normalize_message_id(message_id) -> str:
+def normalize_message_id(message_id) -> str:
     """
     ESP message ids are opaque strings; some backends (e.g. Anymail's test
     backend) use ints and failed bulk entries may have none at all. The natural
@@ -48,14 +48,14 @@ def _normalize_message_id(message_id) -> str:
     return str(message_id)
 
 
-def _json_safe(esp_event):
+def json_safe(esp_event):
     if hasattr(esp_event, "dict"):
         # Django QueryDict (some ESP webhook parsers)
         return dict(esp_event.lists())
     return esp_event
 
 
-def _serialize_tracking_event(event, esp_name):
+def serialize_tracking_event(event, esp_name):
     return {
         "esp_name": esp_name,
         "event_type": event.event_type,
@@ -70,11 +70,11 @@ def _serialize_tracking_event(event, esp_name):
         "user_agent": event.user_agent,
         "click_url": event.click_url,
         "tags": event.tags,
-        "esp_event": _json_safe(event.esp_event),
+        "esp_event": json_safe(event.esp_event),
     }
 
 
-def _store_event(event_row: MailDeliveryEvent):
+def store_event(event_row: MailDeliveryEvent):
     """
     Insert the event, or return the already stored one if the same notification
     was seen before (ESP redelivery, re-fired signal). Returns (event_row, created).
@@ -109,12 +109,12 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
         for recipient, recipient_status in status.recipients.items():
             key = {
                 "esp_name": esp_name,
-                "message_id": _normalize_message_id(recipient_status.message_id),
-                "recipient": _normalize_recipient(recipient),
+                "message_id": normalize_message_id(recipient_status.message_id),
+                "recipient": normalize_recipient(recipient),
             }
             delivery, _created = MailDelivery.objects.get_or_create(**key)
             deliveries.append(delivery)
-            _store_event(
+            store_event(
                 MailDeliveryEvent(
                     **key,
                     event_id=str(uuid.uuid5(POST_SEND_EVENT_NAMESPACE, "|".join(key.values()))),
@@ -135,11 +135,11 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
     message.mail_deliveries = deliveries
 
 
-def _build_event_row(event, esp_name) -> MailDeliveryEvent:
+def build_event_row(event, esp_name) -> MailDeliveryEvent:
     return MailDeliveryEvent(
         esp_name=esp_name,
-        message_id=_normalize_message_id(event.message_id),
-        recipient=_normalize_recipient(event.recipient),
+        message_id=normalize_message_id(event.message_id),
+        recipient=normalize_recipient(event.recipient),
         event_id=str(event.event_id or uuid.uuid4()),
         event_type=event.event_type,
         timestamp=event.timestamp,
@@ -150,11 +150,11 @@ def _build_event_row(event, esp_name) -> MailDeliveryEvent:
         mta_response=event.mta_response,
         user_agent=event.user_agent,
         click_url=event.click_url,
-        esp_event=_json_safe(event.esp_event) or {},
+        esp_event=json_safe(event.esp_event) or {},
     )
 
 
-def _log_admin_action(delivery: MailDelivery, previous_state: str):
+def log_admin_action(delivery: MailDelivery, previous_state: str):
     try:
         LogEntry.objects.create(
             user_id=ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
@@ -187,16 +187,16 @@ def handle_tracking_event(sender, event, esp_name, **kwargs):
             esp_name,
             event.message_id,
             event.recipient,
-            extra={"tracking_event": _serialize_tracking_event(event, esp_name)},
+            extra={"tracking_event": serialize_tracking_event(event, esp_name)},
         )
 
-    event_row = _build_event_row(event, esp_name)
+    event_row = build_event_row(event, esp_name)
     deliveries = MailDelivery.objects.for_event(event_row)
 
     # Only needed for the optional admin log; costs one query when enabled.
     before = deliveries.with_state().first() if ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID else None
 
-    event_row, created = _store_event(event_row)
+    event_row, created = store_event(event_row)
     if not created:
         logger.info(
             "Duplicate tracking notification %s from %s for message %s; already recorded",
@@ -222,4 +222,4 @@ def handle_tracking_event(sender, event, esp_name, **kwargs):
     if before is not None:
         after = deliveries.with_state().first()
         if after is not None and after.state != before.state:
-            _log_admin_action(after, before.state)
+            log_admin_action(after, before.state)
