@@ -5,7 +5,10 @@ from anymail_status_tracker.debug.helpers import simulate_sns_event
 
 
 class Command(BaseCommand):
-    help = "Simulate an SNS webhook event. Without --message_id, a self-contained MailDelivery is created."
+    help = (
+        "Simulate an SNS webhook event. Without --message_id, a self-contained MailDelivery is created "
+        "(or, with --orphan, only the event is stored)."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -27,11 +30,35 @@ class Command(BaseCommand):
             default=DEFAULT_EMAIL,
             help="Recipient email address (default: %(default)s)",
         )
+        parser.add_argument(
+            "--repeat",
+            type=int,
+            default=1,
+            help="Deliver the same SNS notification N times to demonstrate idempotent handling (default: 1)",
+        )
+        parser.add_argument(
+            "--orphan",
+            action="store_true",
+            help="Do not create a MailDelivery; store the event as an orphan (webhook before post_send)",
+        )
 
     def handle(self, *args, **options):
         event_type = options["event"]
         message_id = options["message_id"]
         email = options["email"]
-        simulate_sns_event(event_type, email, message_id=message_id)
-        target = f"message {message_id}" if message_id else f"{email} (new MailDelivery)"
-        self.stdout.write(self.style.SUCCESS(f"Successfully simulated {event_type} event for {target}"))
+        repeat = max(1, options["repeat"])
+
+        sns_message_id = None
+        for _ in range(repeat):
+            message_id, sns_message_id = simulate_sns_event(
+                event_type,
+                email,
+                message_id=message_id,
+                sns_message_id=sns_message_id,
+                create_delivery=False if options["orphan"] else None,
+            )
+
+        times = f" x{repeat} (same SNS MessageId)" if repeat > 1 else ""
+        self.stdout.write(
+            self.style.SUCCESS(f"Simulated {event_type} event{times} for message {message_id} to {email}")
+        )
