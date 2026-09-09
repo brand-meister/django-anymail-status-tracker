@@ -94,6 +94,30 @@ def test_redelivered_notification_is_recorded_once(ses_message_id):
     assert delivery(ses_message_id).state == MailDelivery.STATE_DELIVERED
 
 
+def test_missing_esp_event_id_is_still_idempotent_on_redelivery(ses_message_id):
+    """ESPs that omit event_id must not create a new row on every retry."""
+    from anymail.signals import AnymailTrackingEvent, tracking
+
+    from anymail_status_tracker.models.mail_delivery_event import SYNTHETIC_EVENT_ID_PREFIX
+
+    fire_post_send(ses_message_id)
+    event = AnymailTrackingEvent(
+        event_type=MailDelivery.STATE_DELIVERED,
+        timestamp=at(5),
+        event_id=None,
+        message_id=ses_message_id,
+        recipient=RECIPIENT,
+        mta_response="250 ok",
+    )
+    tracking.send(sender=object, event=event, esp_name=SES)
+    tracking.send(sender=object, event=event, esp_name=SES)
+
+    rows = MailDeliveryEvent.objects.filter(event_type=MailDelivery.STATE_DELIVERED)
+    assert rows.count() == 1
+    assert rows.get().event_id.startswith(SYNTHETIC_EVENT_ID_PREFIX)
+    assert delivery(ses_message_id).state == MailDelivery.STATE_DELIVERED
+
+
 # --- ordering rules -----------------------------------------------------------
 
 

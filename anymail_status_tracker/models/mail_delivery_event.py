@@ -13,12 +13,53 @@ from anymail_status_tracker.models.mail_delivery import MailDelivery
 POST_SEND_EVENT_ID_PREFIX = "post_send:"
 POST_SEND_EVENT_NAMESPACE = uuid.UUID("6f1b2a0e-3c4d-4e5f-8a9b-0c1d2e3f4a5b")
 
+# Fallback when an ESP omits event_id: same payload must stay idempotent on
+# redelivery. Prefixed so it cannot collide with real ESP ids or post_send baselines.
+SYNTHETIC_EVENT_ID_PREFIX = "synth:"
+SYNTHETIC_EVENT_NAMESPACE = uuid.UUID("a1b2c3d4-e5f6-4789-a012-3456789abcde")
+
 
 def post_send_event_id(esp_name: str, message_id: str, recipient: str) -> str:
     """Stable event_id for the post_send baseline of one delivery."""
     return POST_SEND_EVENT_ID_PREFIX + str(
-        uuid.uuid5(POST_SEND_EVENT_NAMESPACE, "|".join((esp_name, message_id, recipient)))
+        uuid.uuid5(POST_SEND_EVENT_NAMESPACE, "\0".join((esp_name, message_id, recipient)))
     )
+
+
+def synthetic_tracking_event_id(
+    *,
+    esp_name: str,
+    message_id: str,
+    recipient: str,
+    event_type: str,
+    timestamp,
+    click_url: str | None = None,
+    description: str | None = None,
+    reject_reason: str | None = None,
+    mta_response: str | None = None,
+) -> str:
+    """
+    Deterministic event_id when the ESP did not supply one.
+
+    Built from the fields that identify "the same" notification so a redelivery
+    hits the unique constraint instead of inserting a duplicate row. Distinct
+    opens/clicks that share only message_id+recipient still differ via timestamp
+    / click_url / description when the ESP provides them.
+    """
+    material = "\0".join(
+        (
+            esp_name,
+            message_id,
+            recipient,
+            event_type or "",
+            timestamp.isoformat() if timestamp is not None else "",
+            click_url or "",
+            description or "",
+            reject_reason or "",
+            mta_response or "",
+        )
+    )
+    return SYNTHETIC_EVENT_ID_PREFIX + str(uuid.uuid5(SYNTHETIC_EVENT_NAMESPACE, material))
 
 
 class MailDeliveryEventQuerySet(models.QuerySet):

@@ -12,7 +12,7 @@ from anymail.signals import post_send, tracking
 from anymail.utils import parse_single_address
 
 from anymail_status_tracker.models import MailDelivery, MailDeliveryEvent
-from anymail_status_tracker.models.mail_delivery_event import post_send_event_id
+from anymail_status_tracker.models.mail_delivery_event import post_send_event_id, synthetic_tracking_event_id
 from anymail_status_tracker.settings import (
     ANYMAIL_STATUS_TRACKER_LOG_ACTION_USER_ID,
     ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT,
@@ -133,11 +133,31 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
 
 
 def build_event_row(event, esp_name) -> MailDeliveryEvent:
+    # Hash the raw message_id for synthetic ids so a missing ESP id stays stable
+    # across redeliveries even when normalize_message_id assigns a fresh
+    # NO_MESSAGE_ID-* placeholder for storage.
+    raw_message_id = "" if event.message_id is None or event.message_id == "" else str(event.message_id)
+    message_id = normalize_message_id(event.message_id)
+    recipient = normalize_recipient(event.recipient)
+    if event.event_id:
+        event_id = str(event.event_id)
+    else:
+        event_id = synthetic_tracking_event_id(
+            esp_name=esp_name,
+            message_id=raw_message_id,
+            recipient=recipient or "",
+            event_type=event.event_type,
+            timestamp=event.timestamp,
+            click_url=event.click_url,
+            description=event.description,
+            reject_reason=event.reject_reason,
+            mta_response=event.mta_response,
+        )
     return MailDeliveryEvent(
         esp_name=esp_name,
-        message_id=normalize_message_id(event.message_id),
-        recipient=normalize_recipient(event.recipient),
-        event_id=str(event.event_id or uuid.uuid4()),
+        message_id=message_id,
+        recipient=recipient,
+        event_id=event_id,
         event_type=event.event_type,
         timestamp=event.timestamp,
         metadata=event.metadata or {},
