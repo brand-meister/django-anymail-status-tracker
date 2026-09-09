@@ -405,3 +405,51 @@ def test_tracking_event_info_log_and_querydict_esp_event(ses_message_id, monkeyp
 def test_normalize_recipient_edge_cases():
     assert signals._normalize_recipient("") == ""
     assert signals._normalize_recipient("not an email@@@") == "not an email@@@"
+
+
+def test_tracking_uses_same_message_id_normalization_as_post_send():
+    """Falsy ESP message ids (e.g. int 0 from Anymail's test backend) must not
+    become "" in the event log while post_send stored "0" — that breaks the
+    natural key and leaves the event orphaned."""
+    from anymail.signals import AnymailTrackingEvent, tracking
+
+    fire_post_send(0)
+    delivery = MailDelivery.objects.get()
+    assert delivery.message_id == "0"
+
+    tracking.send(
+        sender=object,
+        event=AnymailTrackingEvent(
+            event_type=MailDelivery.STATE_DELIVERED,
+            timestamp=at(5),
+            event_id="norm-0",
+            message_id=0,
+            recipient=RECIPIENT,
+        ),
+        esp_name=SES,
+    )
+
+    event = MailDeliveryEvent.objects.get(event_id="norm-0")
+    assert event.message_id == "0"
+    assert not MailDeliveryEvent.objects.orphans().filter(pk=event.pk).exists()
+    assert delivery.state == MailDelivery.STATE_DELIVERED
+
+
+def test_tracking_empty_message_id_gets_placeholder_not_empty_string():
+    from anymail.signals import AnymailTrackingEvent, tracking
+
+    tracking.send(
+        sender=object,
+        event=AnymailTrackingEvent(
+            event_type=MailDelivery.STATE_DELIVERED,
+            timestamp=at(5),
+            event_id="norm-empty",
+            message_id=None,
+            recipient=RECIPIENT,
+        ),
+        esp_name=SES,
+    )
+
+    event = MailDeliveryEvent.objects.get(event_id="norm-empty")
+    assert event.message_id.startswith(signals.NO_MESSAGE_ID_PREFIX + "-")
+    assert event.message_id != ""

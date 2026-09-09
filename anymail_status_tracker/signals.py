@@ -138,7 +138,7 @@ def handle_post_send(sender, message, status, esp_name, **kwargs):
 def _build_event_row(event, esp_name) -> MailDeliveryEvent:
     return MailDeliveryEvent(
         esp_name=esp_name,
-        message_id=str(event.message_id or ""),
+        message_id=_normalize_message_id(event.message_id),
         recipient=_normalize_recipient(event.recipient),
         event_id=str(event.event_id or uuid.uuid4()),
         event_type=event.event_type,
