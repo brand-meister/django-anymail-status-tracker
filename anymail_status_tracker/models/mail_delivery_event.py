@@ -125,7 +125,7 @@ class MailDeliveryEvent(models.Model):
     """
 
     esp_name = models.CharField(max_length=64)
-    message_id = models.CharField(max_length=255)
+    message_id = models.CharField(max_length=300)
     recipient = models.EmailField()
 
     event_id = models.CharField(

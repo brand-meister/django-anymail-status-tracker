@@ -3,12 +3,14 @@ Data migration moving the delivery status from MailDelivery into the
 MailDeliveryEvent log.
 
 Forwards
-    1. Make (esp_name, message_id, recipient) unique without deleting any row
+    1. Widen message_id to 300 so "<message_id>#dup-<uuid4>" fits when the
+       original is already 255 characters (the previous column limit).
+    2. Make (esp_name, message_id, recipient) unique without deleting any row
        (the constraint itself is added in 0004):
        * "NO_MESSAGE_ID" placeholders become "NO_MESSAGE_ID-<uuid4>".
        * Remaining duplicates keep the most recently updated row's message_id
          and rewrite the older rows to "<message_id>#dup-<uuid4>".
-    2. Snapshot every row's status columns into one "legacy:<pk>" event so the
+    3. Snapshot every row's status columns into one "legacy:<pk>" event so the
        state is preserved when 0004 drops those columns.
 
 Backwards (runs after 0004 has re-created the, then empty, status columns)
@@ -23,7 +25,7 @@ import re
 import uuid
 from collections import defaultdict
 
-from django.db import migrations
+from django.db import migrations, models
 from django.db.models import Count
 
 
@@ -199,5 +201,17 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
+        # Must run before the rewrite: reverse then restores ids to <=255 before
+        # shrinking the column back.
+        migrations.AlterField(
+            model_name="maildelivery",
+            name="message_id",
+            field=models.CharField(max_length=300),
+        ),
+        migrations.AlterField(
+            model_name="maildeliveryevent",
+            name="message_id",
+            field=models.CharField(max_length=300),
+        ),
         migrations.RunPython(forwards, backwards),
     ]

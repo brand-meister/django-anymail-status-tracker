@@ -191,7 +191,8 @@ class MailDelivery(models.Model):
     PENDING_STATES = frozenset((STATE_QUEUED, STATE_SENT, STATE_DEFERRED, STATE_UNKNOWN))
 
     esp_name = models.CharField(max_length=64, help_text="Name of the ESP")
-    message_id = models.CharField(max_length=255)
+    # 300 = 255 (historical ESP ids) + "#dup-<uuid4>" from 0003's duplicate rewrite.
+    message_id = models.CharField(max_length=300)
     recipient = models.EmailField()
     sent_at = models.DateTimeField(auto_now_add=True)
 
