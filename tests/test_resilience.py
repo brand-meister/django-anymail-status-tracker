@@ -125,13 +125,13 @@ def test_id_less_events_same_key_and_type_get_distinct_synthetic_ids(ses_message
     from anymail_status_tracker.models.mail_delivery_event import SYNTHETIC_EVENT_ID_PREFIX
 
     fire_post_send(ses_message_id)
-    shared = dict(
-        event_type=MailDelivery.STATE_OPENED,
-        timestamp=at(5),
-        event_id=None,
-        message_id=ses_message_id,
-        recipient=RECIPIENT,
-    )
+    shared = {
+        "event_type": MailDelivery.STATE_OPENED,
+        "timestamp": at(5),
+        "event_id": None,
+        "message_id": ses_message_id,
+        "recipient": RECIPIENT,
+    }
     tracking.send(
         sender=object,
         event=AnymailTrackingEvent(

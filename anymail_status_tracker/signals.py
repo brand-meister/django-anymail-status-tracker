@@ -84,7 +84,7 @@ def store_event(event_row: MailDeliveryEvent):
         try:
             existing = MailDeliveryEvent.objects.get(esp_name=event_row.esp_name, event_id=event_row.event_id)
         except MailDeliveryEvent.DoesNotExist:
-            raise exc
+            raise exc from None
         return existing, False
 
 
