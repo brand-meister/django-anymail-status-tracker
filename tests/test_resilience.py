@@ -384,6 +384,22 @@ def test_fake_delivery_honours_explicit_message_id():
     assert d.message_id == "custom-id"
 
 
+def test_fake_delivery_dedupes_duplicate_recipients():
+    other = "other@example.com"
+    message = EmailMessage(
+        subject="Hi",
+        body="Body",
+        from_email="sender@example.com",
+        to=[RECIPIENT, other],
+        cc=[RECIPIENT],
+    )
+
+    deliveries = MailDelivery.objects.create_message(message, fake_delivery=True)
+
+    assert [d.recipient for d in deliveries] == [RECIPIENT, other]
+    assert MailDelivery.objects.filter(esp_name="Fake", message_id=deliveries[0].message_id).count() == 2
+
+
 # --- admin log entries --------------------------------------------------------
 
 

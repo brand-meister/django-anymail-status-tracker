@@ -88,10 +88,12 @@ class MailDeliveryQuerySet(models.QuerySet):
         # its own message_id unless the caller supplied one via extra_headers.
         message_id = message.extra_headers.get("message_id") or f"fake-{uuid.uuid4()}"
         now = timezone.now()
+        # recipients() is to+cc+bcc and can repeat an address; unique constraint forbids that.
+        recipients = list(dict.fromkeys(message.recipients()))
         deliveries = self.bulk_create(
             [
                 self.model(esp_name=FAKE_ESP_NAME, recipient=recipient, message_id=message_id)
-                for recipient in message.recipients()
+                for recipient in recipients
             ]
         )
         MailDeliveryEvent.objects.bulk_create(
