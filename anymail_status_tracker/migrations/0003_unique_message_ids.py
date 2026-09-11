@@ -170,7 +170,7 @@ def restore_state_from_events(MailDelivery, MailDeliveryEvent) -> int:
     return restored
 
 
-def restore_message_ids(MailDelivery) -> int:
+def restore_message_ids(MailDelivery, MailDeliveryEvent) -> int:
     restored = 0
     candidates = MailDelivery.objects.filter(message_id__startswith=f"{NO_MESSAGE_ID}-") | MailDelivery.objects.filter(
         message_id__contains="#dup-"
@@ -183,6 +183,7 @@ def restore_message_ids(MailDelivery) -> int:
         else:
             continue
         MailDelivery.objects.filter(pk=pk).update(message_id=original)
+        MailDeliveryEvent.objects.filter(message_id=message_id).update(message_id=original)
         restored += 1
     return restored
 
@@ -191,7 +192,7 @@ def backwards(apps, schema_editor):
     MailDelivery = apps.get_model("anymail_status_tracker", "MailDelivery")
     MailDeliveryEvent = apps.get_model("anymail_status_tracker", "MailDeliveryEvent")
     restore_state_from_events(MailDelivery, MailDeliveryEvent)
-    restore_message_ids(MailDelivery)
+    restore_message_ids(MailDelivery, MailDeliveryEvent)
     MailDeliveryEvent.objects.filter(event_id__startswith=LEGACY_EVENT_ID_PREFIX).delete()
 
 
