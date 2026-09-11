@@ -91,10 +91,7 @@ class MailDeliveryQuerySet(models.QuerySet):
         # recipients() is to+cc+bcc and can repeat an address; unique constraint forbids that.
         recipients = list(dict.fromkeys(message.recipients()))
         deliveries = self.bulk_create(
-            [
-                self.model(esp_name=FAKE_ESP_NAME, recipient=recipient, message_id=message_id)
-                for recipient in recipients
-            ]
+            [self.model(esp_name=FAKE_ESP_NAME, recipient=recipient, message_id=message_id) for recipient in recipients]
         )
         MailDeliveryEvent.objects.bulk_create(
             [
