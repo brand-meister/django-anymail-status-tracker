@@ -1,3 +1,4 @@
+import json
 import uuid
 
 from django.db import models
@@ -26,6 +27,11 @@ def post_send_event_id(esp_name: str, message_id: str, recipient: str) -> str:
     )
 
 
+def _canonical_json(value) -> str:
+    """Stable JSON for synthetic id material (key order independent)."""
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), default=str)
+
+
 def synthetic_tracking_event_id(
     *,
     esp_name: str,
@@ -37,6 +43,10 @@ def synthetic_tracking_event_id(
     description: str | None = None,
     reject_reason: str | None = None,
     mta_response: str | None = None,
+    user_agent: str | None = None,
+    metadata=None,
+    tags=None,
+    esp_event=None,
 ) -> str:
     """
     Deterministic event_id when the ESP did not supply one.
@@ -44,7 +54,8 @@ def synthetic_tracking_event_id(
     Built from the fields that identify "the same" notification so a redelivery
     hits the unique constraint instead of inserting a duplicate row. Distinct
     opens/clicks that share only message_id+recipient still differ via timestamp
-    / click_url / description when the ESP provides them.
+    / click_url / description / user_agent / metadata / tags / esp_event when the
+    ESP provides them.
     """
     material = "\0".join(
         (
@@ -57,6 +68,10 @@ def synthetic_tracking_event_id(
             description or "",
             reject_reason or "",
             mta_response or "",
+            user_agent or "",
+            _canonical_json(metadata or {}),
+            _canonical_json(list(tags or [])),
+            _canonical_json(esp_event or {}),
         )
     )
     return SYNTHETIC_EVENT_ID_PREFIX + str(uuid.uuid5(SYNTHETIC_EVENT_NAMESPACE, material))

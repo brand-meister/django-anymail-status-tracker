@@ -118,6 +118,46 @@ def test_missing_esp_event_id_is_still_idempotent_on_redelivery(ses_message_id):
     assert delivery(ses_message_id).state == MailDelivery.STATE_DELIVERED
 
 
+def test_id_less_events_same_key_and_type_get_distinct_synthetic_ids(ses_message_id):
+    """Distinct notifications sharing delivery key + type must not collide."""
+    from anymail.signals import AnymailTrackingEvent, tracking
+
+    from anymail_status_tracker.models.mail_delivery_event import SYNTHETIC_EVENT_ID_PREFIX
+
+    fire_post_send(ses_message_id)
+    shared = dict(
+        event_type=MailDelivery.STATE_OPENED,
+        timestamp=at(5),
+        event_id=None,
+        message_id=ses_message_id,
+        recipient=RECIPIENT,
+    )
+    tracking.send(
+        sender=object,
+        event=AnymailTrackingEvent(
+            **shared,
+            user_agent="Mozilla/5.0 (A)",
+            esp_event={"notificationType": "Open", "open": {"ipAddress": "1.1.1.1"}},
+        ),
+        esp_name=SES,
+    )
+    tracking.send(
+        sender=object,
+        event=AnymailTrackingEvent(
+            **shared,
+            user_agent="Mozilla/5.0 (B)",
+            esp_event={"notificationType": "Open", "open": {"ipAddress": "2.2.2.2"}},
+        ),
+        esp_name=SES,
+    )
+
+    rows = MailDeliveryEvent.objects.filter(event_type=MailDelivery.STATE_OPENED)
+    assert rows.count() == 2
+    ids = set(rows.values_list("event_id", flat=True))
+    assert len(ids) == 2
+    assert all(eid.startswith(SYNTHETIC_EVENT_ID_PREFIX) for eid in ids)
+
+
 # --- ordering rules -----------------------------------------------------------
 
 
@@ -328,6 +368,24 @@ def test_post_send_twice_for_same_message_is_idempotent(ses_message_id):
 
     assert MailDelivery.objects.filter(message_id=ses_message_id).count() == 1
     assert MailDeliveryEvent.objects.filter(message_id=ses_message_id).count() == 1
+
+
+def test_store_event_reraise_integrity_error_when_no_matching_row(monkeypatch):
+    """IntegrityError must not be replaced by DoesNotExist on failed recovery lookup."""
+
+    def boom(self, *args, **kwargs):
+        raise IntegrityError("not a duplicate key")
+
+    monkeypatch.setattr(MailDeliveryEvent, "save", boom)
+    row = MailDeliveryEvent(
+        esp_name=SES,
+        message_id="m-1",
+        recipient=RECIPIENT,
+        event_id="e-1",
+        event_type=MailDelivery.STATE_QUEUED,
+    )
+    with pytest.raises(IntegrityError, match="not a duplicate key"):
+        signals.store_event(row)
 
 
 def test_post_send_without_message_id_gets_unique_placeholder():

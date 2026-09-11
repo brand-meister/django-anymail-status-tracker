@@ -80,8 +80,11 @@ def store_event(event_row: MailDeliveryEvent):
         with transaction.atomic():
             event_row.save(force_insert=True)
         return event_row, True
-    except IntegrityError:
-        existing = MailDeliveryEvent.objects.get(esp_name=event_row.esp_name, event_id=event_row.event_id)
+    except IntegrityError as exc:
+        try:
+            existing = MailDeliveryEvent.objects.get(esp_name=event_row.esp_name, event_id=event_row.event_id)
+        except MailDeliveryEvent.DoesNotExist:
+            raise exc
         return existing, False
 
 
@@ -152,6 +155,10 @@ def build_event_row(event, esp_name) -> MailDeliveryEvent:
             description=event.description,
             reject_reason=event.reject_reason,
             mta_response=event.mta_response,
+            user_agent=event.user_agent,
+            metadata=event.metadata or {},
+            tags=list(event.tags or []),
+            esp_event=json_safe(event.esp_event) or {},
         )
     return MailDeliveryEvent(
         esp_name=esp_name,
