@@ -59,41 +59,40 @@ SNAPSHOT_FIELDS = (
 # --- forwards -----------------------------------------------------------------
 
 
-def make_message_ids_unique(MailDelivery) -> dict:
+def make_message_ids_unique(MailDelivery, db_alias) -> dict:
+    deliveries = MailDelivery.objects.using(db_alias)
     placeholders_rewritten = 0
-    for pk in MailDelivery.objects.filter(message_id=NO_MESSAGE_ID).values_list("pk", flat=True).iterator():
-        MailDelivery.objects.filter(pk=pk).update(message_id=f"{NO_MESSAGE_ID}-{uuid.uuid4()}")
+    for pk in deliveries.filter(message_id=NO_MESSAGE_ID).values_list("pk", flat=True).iterator():
+        deliveries.filter(pk=pk).update(message_id=f"{NO_MESSAGE_ID}-{uuid.uuid4()}")
         placeholders_rewritten += 1
 
     duplicates_rewritten = 0
-    duplicate_keys = (
-        MailDelivery.objects.values(*NATURAL_KEY).annotate(n=Count("pk")).filter(n__gt=1).values_list(*NATURAL_KEY)
-    )
+    duplicate_keys = deliveries.values(*NATURAL_KEY).annotate(n=Count("pk")).filter(n__gt=1).values_list(*NATURAL_KEY)
     for esp_name, message_id, recipient in list(duplicate_keys):
-        rows = MailDelivery.objects.filter(esp_name=esp_name, message_id=message_id, recipient=recipient).order_by(
+        rows = deliveries.filter(esp_name=esp_name, message_id=message_id, recipient=recipient).order_by(
             "-updated_at", "-pk"
         )
         for row in rows[1:]:
-            MailDelivery.objects.filter(pk=row.pk).update(message_id=f"{message_id}#dup-{uuid.uuid4()}")
+            deliveries.filter(pk=row.pk).update(message_id=f"{message_id}#dup-{uuid.uuid4()}")
             duplicates_rewritten += 1
 
     return {"placeholders_rewritten": placeholders_rewritten, "duplicates_rewritten": duplicates_rewritten}
 
 
-def snapshot_deliveries_to_events(MailDelivery, MailDeliveryEvent) -> int:
+def snapshot_deliveries_to_events(MailDelivery, MailDeliveryEvent, db_alias) -> int:
     """
     ``timestamp`` becomes the old webhook timestamp, or ``sent_at`` if the
     delivery never received a webhook (so that a webhook delayed across the
     migration still ranks above the snapshot). ``received_at`` is the migration
     time. Idempotent: rows that already have a legacy event are skipped.
     """
-    existing = set(
-        MailDeliveryEvent.objects.filter(event_id__startswith=LEGACY_EVENT_ID_PREFIX).values_list("event_id", flat=True)
-    )
+    deliveries = MailDelivery.objects.using(db_alias)
+    events = MailDeliveryEvent.objects.using(db_alias)
+    existing = set(events.filter(event_id__startswith=LEGACY_EVENT_ID_PREFIX).values_list("event_id", flat=True))
 
     created = 0
     batch = []
-    for delivery in MailDelivery.objects.order_by("pk").iterator(chunk_size=BATCH_SIZE):
+    for delivery in deliveries.order_by("pk").iterator(chunk_size=BATCH_SIZE):
         event_id = f"{LEGACY_EVENT_ID_PREFIX}{delivery.pk}"
         if event_id in existing:
             continue
@@ -109,20 +108,21 @@ def snapshot_deliveries_to_events(MailDelivery, MailDeliveryEvent) -> int:
             )
         )
         if len(batch) >= BATCH_SIZE:
-            MailDeliveryEvent.objects.bulk_create(batch)
+            events.bulk_create(batch)
             created += len(batch)
             batch = []
     if batch:
-        MailDeliveryEvent.objects.bulk_create(batch)
+        events.bulk_create(batch)
         created += len(batch)
     return created
 
 
 def forwards(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     MailDelivery = apps.get_model("anymail_status_tracker", "MailDelivery")
     MailDeliveryEvent = apps.get_model("anymail_status_tracker", "MailDeliveryEvent")
-    make_message_ids_unique(MailDelivery)
-    snapshot_deliveries_to_events(MailDelivery, MailDeliveryEvent)
+    make_message_ids_unique(MailDelivery, db_alias)
+    snapshot_deliveries_to_events(MailDelivery, MailDeliveryEvent, db_alias)
 
 
 # --- backwards ----------------------------------------------------------------
@@ -139,16 +139,18 @@ def _rank(event):
     )
 
 
-def restore_state_from_events(MailDelivery, MailDeliveryEvent) -> int:
+def restore_state_from_events(MailDelivery, MailDeliveryEvent, db_alias) -> int:
     """Write the winning event of each delivery back into the status columns."""
+    deliveries_qs = MailDelivery.objects.using(db_alias)
+    events_qs = MailDeliveryEvent.objects.using(db_alias)
     restored = 0
-    pks = list(MailDelivery.objects.order_by("pk").values_list("pk", flat=True))
+    pks = list(deliveries_qs.order_by("pk").values_list("pk", flat=True))
     for start in range(0, len(pks), BATCH_SIZE):
-        deliveries = list(MailDelivery.objects.filter(pk__in=pks[start : start + BATCH_SIZE]))
+        deliveries = list(deliveries_qs.filter(pk__in=pks[start : start + BATCH_SIZE]))
 
         events_by_key = defaultdict(list)
         message_ids = {d.message_id for d in deliveries}
-        for event in MailDeliveryEvent.objects.filter(message_id__in=message_ids):
+        for event in events_qs.filter(message_id__in=message_ids):
             events_by_key[(event.esp_name, event.message_id, event.recipient)].append(event)
 
         to_update = []
@@ -165,14 +167,16 @@ def restore_state_from_events(MailDelivery, MailDeliveryEvent) -> int:
                 setattr(delivery, field, getattr(winner, field))
             to_update.append(delivery)
 
-        MailDelivery.objects.bulk_update(to_update, ["state", "timestamp", *SNAPSHOT_FIELDS])
+        deliveries_qs.bulk_update(to_update, ["state", "timestamp", *SNAPSHOT_FIELDS])
         restored += len(to_update)
     return restored
 
 
-def restore_message_ids(MailDelivery, MailDeliveryEvent) -> int:
+def restore_message_ids(MailDelivery, MailDeliveryEvent, db_alias) -> int:
+    deliveries = MailDelivery.objects.using(db_alias)
+    events = MailDeliveryEvent.objects.using(db_alias)
     restored = 0
-    candidates = MailDelivery.objects.filter(message_id__startswith=f"{NO_MESSAGE_ID}-") | MailDelivery.objects.filter(
+    candidates = deliveries.filter(message_id__startswith=f"{NO_MESSAGE_ID}-") | deliveries.filter(
         message_id__contains="#dup-"
     )
     for pk, message_id in candidates.values_list("pk", "message_id").iterator():
@@ -182,18 +186,19 @@ def restore_message_ids(MailDelivery, MailDeliveryEvent) -> int:
             original = match["message_id"]
         else:
             continue
-        MailDelivery.objects.filter(pk=pk).update(message_id=original)
-        MailDeliveryEvent.objects.filter(message_id=message_id).update(message_id=original)
+        deliveries.filter(pk=pk).update(message_id=original)
+        events.filter(message_id=message_id).update(message_id=original)
         restored += 1
     return restored
 
 
 def backwards(apps, schema_editor):
+    db_alias = schema_editor.connection.alias
     MailDelivery = apps.get_model("anymail_status_tracker", "MailDelivery")
     MailDeliveryEvent = apps.get_model("anymail_status_tracker", "MailDeliveryEvent")
-    restore_state_from_events(MailDelivery, MailDeliveryEvent)
-    restore_message_ids(MailDelivery, MailDeliveryEvent)
-    MailDeliveryEvent.objects.filter(event_id__startswith=LEGACY_EVENT_ID_PREFIX).delete()
+    restore_state_from_events(MailDelivery, MailDeliveryEvent, db_alias)
+    restore_message_ids(MailDelivery, MailDeliveryEvent, db_alias)
+    MailDeliveryEvent.objects.using(db_alias).filter(event_id__startswith=LEGACY_EVENT_ID_PREFIX).delete()
 
 
 class Migration(migrations.Migration):
