@@ -10,11 +10,3 @@ ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT = getattr(
     "ANYMAIL_STATUS_TRACKER_LOG_TRACKING_EVENT",
     False,
 )
-
-# In-process retries when a tracking webhook arrives before post_send has committed
-# the MailDelivery row. Total wait with defaults: 0.2 + 0.5 + 1.0 = 1.7s.
-ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS = getattr(
-    settings,
-    "ANYMAIL_STATUS_TRACKER_TRACKING_RETRY_DELAYS",
-    (0.2, 0.5, 1.0),
-)

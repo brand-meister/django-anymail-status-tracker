@@ -3,7 +3,7 @@ import uuid
 
 DEFAULT_EMAIL = "recipient@example.com"
 
-EVENT_TYPES = ("Bounce", "Complaint", "Delivery")
+EVENT_TYPES = ("Send", "Delivery", "Open", "Bounce", "Complaint")
 
 
 def _generate_message_id():
@@ -92,8 +92,33 @@ def get_delivery_event(email=DEFAULT_EMAIL, message_id=None):
     }
 
 
+def get_send_event(email=DEFAULT_EMAIL, message_id=None):
+    # SES "event publishing" format (eventType), emitted as soon as SES accepts the send.
+    message_id = message_id or _generate_message_id()
+    return {
+        "eventType": "Send",
+        "send": {},
+        "mail": _build_mail_object(email, message_id),
+    }
+
+
+def get_open_event(email=DEFAULT_EMAIL, message_id=None):
+    message_id = message_id or _generate_message_id()
+    return {
+        "eventType": "Open",
+        "open": {
+            "ipAddress": "192.0.2.1",
+            "timestamp": "2016-01-27T15:01:02.000Z",
+            "userAgent": "Mozilla/5.0 (Example)",
+        },
+        "mail": _build_mail_object(email, message_id),
+    }
+
+
 EVENT_BUILDERS = {
+    "Send": get_send_event,
+    "Delivery": get_delivery_event,
+    "Open": get_open_event,
     "Bounce": get_bounce_event,
     "Complaint": get_complaint_event,
-    "Delivery": get_delivery_event,
 }

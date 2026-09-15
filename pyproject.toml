@@ -11,7 +11,24 @@ dependencies = ["django-anymail[amazon-ses]>=13.1,<14", "django>=4.2,<6"]
 dev = [
     "pre-commit==4.5.1",
     "ruff==0.15.7",
+    "pytest>=8.3,<9",
+    "pytest-django>=4.9,<5",
+    "pytest-cov>=6,<8",
 ]
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "tests.settings"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+
+[tool.coverage.run]
+source = ["anymail_status_tracker"]
+omit = ["*/migrations/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+exclude_also = ["if TYPE_CHECKING:"]
 
 [tool.uv]
 default-groups = "all"

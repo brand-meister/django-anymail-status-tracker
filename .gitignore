@@ -11,6 +11,12 @@ include
 .venv/
 venv/
 
+# Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
 # SQLite database files
 *.sqlite3
 
