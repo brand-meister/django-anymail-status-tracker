@@ -2,24 +2,84 @@
 <html>
 <head><title>Test</title></head>
 <body>
-  <h1>Test Form</h1>
+  <h1>New delivery</h1>
+  <p>Creates an Amazon SES MailDelivery and fires the chosen SNS event.</p>
   <form method="post">
     {% csrf_token %}
     {{ form.as_p }}
-    <button type="submit">Submit</button>
+    <button type="submit">Create</button>
   </form>
 
   <hr>
 
   <h2>Mail Deliveries</h2>
   {% if deliveries %}
-  <ul>
-    {% for d in deliveries %}
-    <li>{{ d.recipient }} &mdash; {{ d.get_state_display }} &mdash; {{ d.message_id }} ({{ d.updated_at }})</li>
-    {% endfor %}
-  </ul>
+  <table>
+    <thead>
+      <tr>
+        <th>Recipient</th>
+        <th>State</th>
+        <th>Message id</th>
+        <th>State since</th>
+        <th>Add event</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for d in deliveries %}
+      <tr>
+        <td>{{ d.recipient }}</td>
+        <td>{{ d.get_state_display }}</td>
+        <td>{{ d.message_id }}</td>
+        <td>{{ d.state_timestamp }}</td>
+        <td>
+          <form method="post">
+            {% csrf_token %}
+            <input type="hidden" name="message_id" value="{{ d.message_id }}">
+            <input type="hidden" name="email" value="{{ d.recipient }}">
+            <select name="webhook_status_type">
+              {% for value, label in event_choices %}
+              <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <button type="submit">Add event</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
   {% else %}
   <p>No deliveries yet.</p>
+  {% endif %}
+
+  <h2>Tracking Events (latest 50, {{ orphan_count }} orphan{{ orphan_count|pluralize }})</h2>
+  {% if events %}
+  <table>
+    <thead>
+      <tr>
+        <th>Recipient</th>
+        <th>Event</th>
+        <th>Subject</th>
+        <th>Message id</th>
+        <th>ESP timestamp</th>
+        <th>Received</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      <tr>
+        <td>{{ e.recipient }}</td>
+        <td>{{ e.get_event_type_display }}</td>
+        <td>{{ e.subject|default:"—" }}</td>
+        <td>{{ e.message_id }}</td>
+        <td>{{ e.timestamp }}</td>
+        <td>{{ e.received_at }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No tracking events yet.</p>
   {% endif %}
 </body>
 </html>
