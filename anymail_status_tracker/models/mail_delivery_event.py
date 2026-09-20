@@ -124,7 +124,7 @@ class MailDeliveryEventQuerySet(models.QuerySet):
             message_id=OuterRef("message_id"),
             recipient=OuterRef("recipient"),
         )
-        return self.annotate(_has_delivery=models.Exists(matching)).filter(_has_delivery=False)
+        return self.filter(~models.Exists(matching))
 
 
 class MailDeliveryEvent(models.Model):
