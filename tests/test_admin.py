@@ -58,6 +58,24 @@ def test_delivery_change_page_tolerates_none_tags(admin_client):
     assert "campaign" in response.content.decode()
 
 
+def test_latest_event_details_tolerates_null_tags_field():
+    # tags is NOT NULL in the schema; still guard in-memory None (legacy/corrupt loads).
+    delivery = MailDelivery(esp_name=SES, message_id="null-tags", recipient=RECIPIENT)
+    delivery.__dict__["latest_event"] = MailDeliveryEvent(
+        pk=1,
+        esp_name=SES,
+        message_id="null-tags",
+        recipient=RECIPIENT,
+        event_id="evt-null-tags-field",
+        event_type=MailDelivery.STATE_DELIVERED,
+        tags=None,
+    )
+
+    html = MailDeliveryAdmin(MailDelivery, None).latest_event_details(delivery)
+
+    assert "evt-null-tags-field" in html
+
+
 def test_delivery_changelist_state_filter(admin_client, ses_message_id):
     fire_post_send(ses_message_id)
     post_sns_event("Delivery", ses_message_id)
