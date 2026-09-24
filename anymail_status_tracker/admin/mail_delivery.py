@@ -84,7 +84,7 @@ class MailDeliveryAdmin(admin.ModelAdmin):
             ("User agent", event.user_agent),
             ("Click URL", event.click_url),
             ("Metadata", event.metadata or None),
-            ("Tags", ", ".join(event.tags) if event.tags else None),
+            ("Tags", ", ".join(t for t in event.tags if t) or None),
         )
         rows = format_html_join(
             "", "<tr><th style='text-align:left'>{}</th><td>{}</td></tr>", ((k, v) for k, v in details if v)
