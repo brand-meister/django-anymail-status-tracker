@@ -41,6 +41,41 @@ def test_delivery_change_page_without_events(admin_client):
     assert "No events logged yet." in response.content.decode()
 
 
+def test_delivery_change_page_tolerates_none_tags(admin_client):
+    delivery = MailDelivery.objects.create(esp_name=SES, message_id="tagged", recipient=RECIPIENT)
+    MailDeliveryEvent.objects.create(
+        esp_name=SES,
+        message_id=delivery.message_id,
+        recipient=delivery.recipient,
+        event_id="evt-none-tags",
+        event_type=MailDelivery.STATE_DELIVERED,
+        tags=[None, "campaign", None],
+    )
+
+    response = admin_client.get(reverse("admin:anymail_status_tracker_maildelivery_change", args=[delivery.pk]))
+
+    assert response.status_code == 200
+    assert "campaign" in response.content.decode()
+
+
+def test_latest_event_details_tolerates_null_tags_field():
+    # tags is NOT NULL in the schema; still guard in-memory None (legacy/corrupt loads).
+    delivery = MailDelivery(esp_name=SES, message_id="null-tags", recipient=RECIPIENT)
+    delivery.__dict__["latest_event"] = MailDeliveryEvent(
+        pk=1,
+        esp_name=SES,
+        message_id="null-tags",
+        recipient=RECIPIENT,
+        event_id="evt-null-tags-field",
+        event_type=MailDelivery.STATE_DELIVERED,
+        tags=None,
+    )
+
+    html = MailDeliveryAdmin(MailDelivery, None).latest_event_details(delivery)
+
+    assert "evt-null-tags-field" in html
+
+
 def test_delivery_changelist_state_filter(admin_client, ses_message_id):
     fire_post_send(ses_message_id)
     post_sns_event("Delivery", ses_message_id)
