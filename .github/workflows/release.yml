@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to release (e.g. 1.2.0)"
+        description: "Version to release (e.g. 1.2.0 or 1.2.0rc1)"
         required: true
         type: string
 
@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   release:
-    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,13 +22,27 @@ jobs:
       - name: Validate version
         env:
           INPUT_VERSION: ${{ inputs.version }}
+          REF: ${{ github.ref }}
         run: |
-          semver_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-((0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*)(\.(0|[1-9][0-9]*|[0-9]*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\+([0-9a-zA-Z-]+(\.[0-9a-zA-Z-]+)*))?$'
-          if ! [[ "$INPUT_VERSION" =~ $semver_pattern ]]; then
-            echo "::error::Invalid SemVer: $INPUT_VERSION"
+          # PEP 440: 1.2.3, 1.2.3rc1, 1.2.3a1, 1.2.3b2, optional .postN / .devN
+          pep440_pattern='^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)((a|b|rc)(0|[1-9][0-9]*))?(\.post(0|[1-9][0-9]*))?(\.dev(0|[1-9][0-9]*))?$'
+          if ! [[ "$INPUT_VERSION" =~ $pep440_pattern ]]; then
+            echo "::error::Invalid PEP 440 version: $INPUT_VERSION (examples: 1.2.0, 1.2.0rc1)"
             exit 1
           fi
+
+          is_prerelease=false
+          if [[ "$INPUT_VERSION" =~ (a|b|rc)[0-9]+ ]] || [[ "$INPUT_VERSION" =~ \.dev[0-9]+ ]]; then
+            is_prerelease=true
+          fi
+
+          if [[ "$is_prerelease" != true && "$REF" != "refs/heads/master" ]]; then
+            echo "::error::Final releases must be cut from master (got $REF). Use an rc/a/b version for other branches."
+            exit 1
+          fi
+
           echo "VERSION=$INPUT_VERSION" >> "$GITHUB_ENV"
+          echo "IS_PRERELEASE=$is_prerelease" >> "$GITHUB_ENV"
 
       - uses: astral-sh/setup-uv@v5
 
@@ -61,8 +74,15 @@ jobs:
             echo "::error::No build artifacts found in dist/"
             exit 1
           fi
+
+          prerelease_args=()
+          if [[ "$IS_PRERELEASE" == true ]]; then
+            prerelease_args=(--prerelease)
+          fi
+
           gh release create "${VERSION}" \
             --title "${VERSION}" \
             --generate-notes \
             --target "$(git rev-parse HEAD)" \
+            "${prerelease_args[@]}" \
             "${assets[@]}"
